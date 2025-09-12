@@ -178,9 +178,7 @@ create table CONTRATO
 
    b. `DatabaseConnectionImpl.java`:
    ```java
-   @ApplicationScoped
    public class DatabaseConnectionImpl implements DatabaseConnection {
-       @Inject
        DataSource dataSource;
        
        @Override
