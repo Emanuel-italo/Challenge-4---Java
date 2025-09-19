@@ -131,7 +131,7 @@ create table CONTRATO
     CPF         VARCHAR2(11) not null
         primary key
         constraint CONTRATO_CLIENTE__FK
-            references PF1910.CLIENTE,
+            references CLIENTE,
     DATA_INICIO TIMESTAMP(6),
     DATA_FIM    TIMESTAMP(6),
     LAST_UPDATE TIMESTAMP(6),

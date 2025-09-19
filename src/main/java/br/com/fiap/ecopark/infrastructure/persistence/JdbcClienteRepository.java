@@ -7,6 +7,7 @@ import br.com.fiap.ecopark.domain.repository.ClienteRepository;
 import br.com.fiap.ecopark.infrastructure.exceptions.InfraestruturaException;
 
 import java.sql.*;
+import java.util.ArrayList;
 import java.util.List;
 
 public class JdbcClienteRepository implements ClienteRepository {
@@ -102,11 +103,63 @@ public class JdbcClienteRepository implements ClienteRepository {
 
     @Override
     public List<Cliente> buscarTodos() {
-        return List.of();
+        String sql = """
+                SELECT NOME, CPF, ATIVO
+                FROM CLIENTE ORDER BY NOME
+                """;
+
+        try (Connection conn = this.databaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            List<Cliente> clientes = new ArrayList<>();
+
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                String nome = rs.getString("NOME");
+                String cpf = rs.getString("CPF");
+                Boolean ativo = rs.getBoolean("ATIVO");
+
+                Cliente cliente = new Cliente(nome, cpf, ativo);
+                clientes.add(cliente);
+            }
+
+            return clientes;
+        } catch (SQLException e) {
+            throw new InfraestruturaException("Erro ao buscar todos os clientes", e);
+        }
     }
 
     @Override
     public void desativar(String cpf, Long versao) {
+
+        String sql = """
+                UPDATE CLIENTE SET ATIVO = FALSE, VERSION = ?, LAST_UPDATE = ?
+                WHERE CPF = ? AND VERSION = ?
+                """;
+
+        try (Connection conn = databaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setLong(1, versao);
+
+            //nao vou cobrar lastupdate em prova
+            Timestamp currentTimestamp = new Timestamp(System.currentTimeMillis());
+            stmt.setTimestamp(2, currentTimestamp);
+
+            stmt.setString(3, cpf);
+
+            //nao vou cobrar locking otimista em prova
+            stmt.setLong(4, versao - 1);
+
+            int affectedRows = stmt.executeUpdate();
+            if (affectedRows == 0) {
+                throw new InfraestruturaException("Erro ao desativar cliente, nenhuma linha foi afetada");
+            }
+
+        } catch (SQLException e) {
+            throw new InfraestruturaException("Erro ao desativar cliente", e);
+        }
+
 
     }
 
