@@ -192,4 +192,18 @@ public class Cliente {
             versao++;
         }
     }
+
+    @Override
+    public String toString() {
+        return "Cliente{" +
+                "nome='" + nome + '\'' +
+                ", cpf='" + cpf + '\'' +
+                ", telefone='" + telefone + '\'' +
+                ", email='" + email + '\'' +
+                ", endereco=" + endereco +
+                ", anoNascimento=" + anoNascimento +
+                ", ativo=" + ativo +
+                ", versao=" + versao +
+                '}';
+    }
 }

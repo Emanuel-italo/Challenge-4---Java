@@ -34,4 +34,13 @@ public class Endereco {
     public String getComplemento() {
         return complemento;
     }
+
+    @Override
+    public String toString() {
+        return "Endereco{" +
+                "cep='" + cep + '\'' +
+                ", numero='" + numero + '\'' +
+                ", complemento='" + complemento + '\'' +
+                '}';
+    }
 }
