@@ -130,4 +130,10 @@ public class Contrato {
         }
     }
 
+
+    public void finalizar() {
+        this.dataFim = LocalDateTime.now();
+        incrementarVersao();
+    }
+
 }

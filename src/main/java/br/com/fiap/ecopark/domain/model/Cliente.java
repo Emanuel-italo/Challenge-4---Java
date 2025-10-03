@@ -193,6 +193,17 @@ public class Cliente {
         }
     }
 
+
+    public void desativar() {
+        this.ativo = false;
+        incrementarVersao();
+    }
+
+    public void reativar() {
+        this.ativo = true;
+        incrementarVersao();
+    }
+
     @Override
     public String toString() {
         return "Cliente{" +
