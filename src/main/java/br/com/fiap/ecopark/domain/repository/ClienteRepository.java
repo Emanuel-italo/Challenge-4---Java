@@ -11,5 +11,5 @@ public interface ClienteRepository {
     Cliente editar(Cliente cliente);
     List<Cliente> buscarTodos();
     void desativar(String cpf, Long versao);
-    void reativar(String cpf, Long versao);
+    void reativar(String cpf, Long versao) throws EntidadeNaoLocalizada;
 }

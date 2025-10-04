@@ -2,6 +2,7 @@ package br.com.fiap.ecopark.infrastructure.config;
 
 
 import br.com.fiap.ecopark.application.service.ContratoServiceImpl;
+import br.com.fiap.ecopark.application.service.ContratoServiceImplV2;
 import br.com.fiap.ecopark.domain.logging.Logger;
 import br.com.fiap.ecopark.domain.repository.ContratoRepository;
 import br.com.fiap.ecopark.domain.service.ClienteService;
@@ -9,6 +10,7 @@ import br.com.fiap.ecopark.domain.service.ContratoService;
 import br.com.fiap.ecopark.infrastructure.logging.LoggerFactory;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.context.RequestScoped;
+import jakarta.inject.Named;
 
 
 @ApplicationScoped
