@@ -3,6 +3,7 @@ package br.com.fiap.ecopark.infrastructure.api.rest;
 import br.com.fiap.ecopark.domain.exceptions.EntidadeNaoLocalizada;
 import br.com.fiap.ecopark.domain.model.Cliente;
 import br.com.fiap.ecopark.interfaces.ClienteController;
+import br.com.fiap.ecopark.interfaces.dto.output.ClienteOutputDto;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
@@ -22,12 +23,12 @@ public class ClienteRestController {
         this.clienteController = clienteController;
     }
 
-
+//DATA TRANSFER OBJECT
     @GET
     @Path("/{cpf}")
     public Response buscarPorCpf(@PathParam("cpf") String cpf) {
         try {
-            Cliente cliente = this.clienteController.buscarById(cpf);
+            ClienteOutputDto cliente = this.clienteController.buscarById(cpf);
             return Response.ok(cliente).build();
         } catch (RuntimeException | EntidadeNaoLocalizada e) {
             return Response.status(Response.Status.NOT_FOUND).build();

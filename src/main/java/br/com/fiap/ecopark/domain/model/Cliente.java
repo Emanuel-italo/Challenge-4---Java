@@ -7,14 +7,14 @@ import java.util.Objects;
 
 public class Cliente {
 
-    private String nome;
-    private String cpf;
-    private String telefone;
-    private String email;
+    private String  nome;
+    private String  cpf;
+    private String  telefone;
+    private String  email;
     private Endereco endereco;
     private Integer anoNascimento;
     private Boolean ativo;
-    private Long versao;
+    private Long    versao;
 
     public Cliente(String nome, String cpf, Integer anoNascimento, String telefone, String email, Endereco endereco, Boolean ativo, Long versao) {
         setNome(nome);

@@ -3,6 +3,8 @@ package br.com.fiap.ecopark.interfaces;
 import br.com.fiap.ecopark.domain.exceptions.EntidadeNaoLocalizada;
 import br.com.fiap.ecopark.domain.model.Cliente;
 import br.com.fiap.ecopark.domain.service.ClienteService;
+import br.com.fiap.ecopark.interfaces.dto.output.ClienteOutputDto;
+import br.com.fiap.ecopark.interfaces.mappers.ClienteMapper;
 
 public class ClienteControllerImpl implements ClienteController {
 
@@ -28,7 +30,8 @@ public class ClienteControllerImpl implements ClienteController {
     }
 
     @Override
-    public Cliente buscarById(String cpf) throws EntidadeNaoLocalizada {
-        return this.clienteService.localizar(cpf);
+    public ClienteOutputDto buscarById(String cpf) throws EntidadeNaoLocalizada {
+        Cliente cliente = this.clienteService.localizar(cpf);
+        return ClienteMapper.toDto(cliente);
     }
 }

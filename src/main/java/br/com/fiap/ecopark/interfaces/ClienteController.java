@@ -2,6 +2,7 @@ package br.com.fiap.ecopark.interfaces;
 
 import br.com.fiap.ecopark.domain.exceptions.EntidadeNaoLocalizada;
 import br.com.fiap.ecopark.domain.model.Cliente;
+import br.com.fiap.ecopark.interfaces.dto.output.ClienteOutputDto;
 
 public interface ClienteController {
 
@@ -11,5 +12,5 @@ public interface ClienteController {
 
     void delete(String cpf, Integer versao);
 
-    Cliente buscarById(String cpf) throws EntidadeNaoLocalizada;
+    ClienteOutputDto buscarById(String cpf) throws EntidadeNaoLocalizada;
 }
