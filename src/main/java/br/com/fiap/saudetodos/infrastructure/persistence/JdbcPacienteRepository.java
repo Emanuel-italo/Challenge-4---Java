@@ -1,12 +1,10 @@
 package br.com.fiap.saudetodos.infrastructure.persistence;
-
 import io.agroal.api.AgroalDataSource;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import br.com.fiap.saudetodos.domain.exceptions.EntidadeNaoLocalizada;
 import br.com.fiap.saudetodos.domain.model.Paciente;
 import br.com.fiap.saudetodos.domain.repository.PacienteRepository;
-import br.com.fiap.saudetodos.infrastructure.exceptions.InfraestruturaException;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -17,177 +15,252 @@ public class JdbcPacienteRepository implements PacienteRepository {
 
     private final DatabaseConnection conexaoBD;
 
-    @Inject
-    public JdbcPacienteRepository(AgroalDataSource ds) {
-        this.conexaoBD = new DatabaseConnectionImpl(ds);
+    @Inject // Construtor para injeção
+    public JdbcPacienteRepository(DatabaseConnection conexaoBD) {
+        this.conexaoBD = conexaoBD;
     }
+
+
+    private Paciente mapearResultSetParaPaciente(ResultSet rs) throws SQLException {
+        return new Paciente(
+                rs.getInt("id"),
+                rs.getString("nome"),
+                rs.getInt("idade"),
+                rs.getString("tipo_deficiencia"),
+                rs.getString("telefone"),
+                rs.getString("cpf"),
+                rs.getString("email")
+
+        );
+
+    }
+
 
     @Override
     public Paciente salvar(Paciente paciente) {
+
         String sql = "INSERT INTO PACIENTE "
-                + "(nome, contato, idade, tipo_deficiencia, telefone, ativo, version, created_at, last_update) "
+                + "(nome, idade, tipo_deficiencia, telefone, cpf, email, ativo, created_at, last_update) "
                 + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
         String[] generatedColumns = { "ID" };
 
-        try (Connection conn = conexaoBD.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql, generatedColumns)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet generatedKeys = null;
+
+        try {
+            conn = conexaoBD.getConnection();
+            stmt = conn.prepareStatement(sql, generatedColumns);
 
             stmt.setString(1, paciente.getNome());
-            stmt.setString(2, paciente.getContato());
-            stmt.setInt(3, paciente.getIdade());
-            stmt.setString(4, paciente.getTipoDeficiencia());
-            stmt.setString(5, paciente.getTelefone());
-            // Oracle NUMBER(1) espera 1 ou 0
-            stmt.setInt(6, 1);
-            stmt.setLong(7, paciente.getVersao());
+            stmt.setInt(2, paciente.getIdade());
+            stmt.setString(3, paciente.getTipoDeficiencia());
+            stmt.setString(4, paciente.getTelefone());
+            stmt.setString(5, paciente.getCpf());
+            stmt.setString(6, paciente.getEmail());
+            stmt.setInt(7, 1); // ativo = true
 
             Timestamp agora = new Timestamp(System.currentTimeMillis());
-            stmt.setTimestamp(8, agora);
-            stmt.setTimestamp(9, agora);
+            stmt.setTimestamp(8, agora); // created_at
+            stmt.setTimestamp(9, agora); // last_update
 
-            if (stmt.executeUpdate() == 0) {
-                throw new InfraestruturaException("Falha ao salvar paciente.");
+            int affectedRows = stmt.executeUpdate();
+
+            if (affectedRows == 0) {
+                System.err.println("Falha ao salvar paciente, nenhuma linha afetada.");
+                return null;
             }
 
-            try (ResultSet rs = stmt.getGeneratedKeys()) {
-                if (rs.next()) {
-                    paciente.setId(rs.getInt(1));
-                }
+            generatedKeys = stmt.getGeneratedKeys();
+            if (generatedKeys.next()) {
+                paciente.setId(generatedKeys.getInt(1)); // Define o ID no objeto
+                return paciente;
+            } else {
+                System.err.println("Falha ao obter ID gerado para o paciente.");
+                return null;
             }
-
-            return paciente;
 
         } catch (SQLException e) {
-            throw new InfraestruturaException("Erro ao salvar paciente.", e);
+            System.err.println("Erro SQL ao salvar paciente: " + e.getMessage());
+            e.printStackTrace();
+
+            return null;
+        } finally {
+
+            try { if (generatedKeys != null) generatedKeys.close(); } catch (SQLException e) { /* Ignora */ }
+            try { if (stmt != null) stmt.close(); } catch (SQLException e) { /* Ignora */ }
+            try { if (conn != null) conn.close(); } catch (SQLException e) { /* Ignora */ }
         }
     }
 
     @Override
     public Paciente buscarPorId(int id) throws EntidadeNaoLocalizada {
-        String sql = "SELECT id, nome, contato, idade, tipo_deficiencia, telefone "
-                + "FROM PACIENTE WHERE id = ? AND ativo = 1";
-        try (Connection conn = conexaoBD.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
 
+        String sql = "SELECT id, nome, idade, tipo_deficiencia, telefone, cpf, email, ativo "
+                + "FROM PACIENTE WHERE id = ? AND ativo = 1";
+
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+
+        try {
+            conn = conexaoBD.getConnection();
+            stmt = conn.prepareStatement(sql);
             stmt.setInt(1, id);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (!rs.next()) {
-                    throw new EntidadeNaoLocalizada("Paciente não encontrado: " + id);
-                }
-                return new Paciente(
-                        rs.getInt("id"),
-                        rs.getString("nome"),
-                        rs.getInt("idade"),
-                        rs.getString("tipo_deficiencia"),
-                        rs.getString("telefone")
-                );
+            rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                return mapearResultSetParaPaciente(rs);
+            } else {
+
+                throw new EntidadeNaoLocalizada("Paciente não encontrado com ID: " + id);
             }
 
         } catch (SQLException e) {
-            throw new InfraestruturaException("Erro ao buscar paciente.", e);
+            System.err.println("Erro SQL ao buscar paciente por ID: " + e.getMessage());
+            e.printStackTrace();
+
+            throw new RuntimeException("Erro de banco de dados ao buscar paciente.", e);
+        } finally {
+            try { if (rs != null) rs.close(); } catch (SQLException e) { /* Ignora */ }
+            try { if (stmt != null) stmt.close(); } catch (SQLException e) { /* Ignora */ }
+            try { if (conn != null) conn.close(); } catch (SQLException e) { /* Ignora */ }
         }
     }
 
     @Override
-    public void editar(Paciente paciente) throws InfraestruturaException, EntidadeNaoLocalizada {
-        String sql = "UPDATE PACIENTE SET nome = ?, contato = ?, idade = ?, tipo_deficiencia = ?, "
-                + "telefone = ?, version = ?, last_update = ? "
-                + "WHERE id = ? AND ativo = 1";
-        try (Connection conn = conexaoBD.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+    public Paciente buscarPorCpf(String cpf) throws EntidadeNaoLocalizada {
 
-            long novaVersao = paciente.getVersao() + 1;
-            Timestamp agora = new Timestamp(System.currentTimeMillis());
+        String sql = "SELECT id, nome, idade, tipo_deficiencia, telefone, cpf, email, ativo "
+                + "FROM PACIENTE WHERE cpf = ? AND ativo = 1";
+        String cpfNumerico = cpf != null ? cpf.replaceAll("\\D", "") : ""; // Garante limpeza
 
-            stmt.setString(1, paciente.getNome());
-            stmt.setString(2, paciente.getContato());
-            stmt.setInt(3, paciente.getIdade());
-            stmt.setString(4, paciente.getTipoDeficiencia());
-            stmt.setString(5, paciente.getTelefone());
-            stmt.setLong(6, novaVersao);
-            stmt.setTimestamp(7, agora);
-            stmt.setInt(8, paciente.getId());
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
 
-            if (stmt.executeUpdate() == 0) {
-                throw new EntidadeNaoLocalizada("Paciente não encontrado para editar: " + paciente.getId());
+        try {
+            conn = conexaoBD.getConnection();
+            stmt = conn.prepareStatement(sql);
+            stmt.setString(1, cpfNumerico);
+            rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                return mapearResultSetParaPaciente(rs);
+            } else {
+                throw new EntidadeNaoLocalizada("Paciente não encontrado com CPF: " + cpf);
             }
-            paciente.setVersao(novaVersao);
 
         } catch (SQLException e) {
-            throw new InfraestruturaException("Erro ao editar paciente.", e);
+            System.err.println("Erro SQL ao buscar paciente por CPF: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Erro de banco de dados ao buscar paciente por CPF.", e);
+        } finally {
+            try { if (rs != null) rs.close(); } catch (SQLException e) { /* Ignora */ }
+            try { if (stmt != null) stmt.close(); } catch (SQLException e) { /* Ignora */ }
+            try { if (conn != null) conn.close(); } catch (SQLException e) { /* Ignora */ }
         }
     }
+
 
     @Override
     public List<Paciente> buscarTodos() {
-        String sql = "SELECT id, nome, contato, idade, tipo_deficiencia, telefone "
+        String sql = "SELECT id, nome, idade, tipo_deficiencia, telefone, cpf, email, ativo "
                 + "FROM PACIENTE WHERE ativo = 1 ORDER BY nome";
         List<Paciente> lista = new ArrayList<>();
-        try (Connection conn = conexaoBD.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
+
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+
+        try {
+            conn = conexaoBD.getConnection();
+            stmt = conn.prepareStatement(sql);
+            rs = stmt.executeQuery();
 
             while (rs.next()) {
-                lista.add(new Paciente(
-                        rs.getInt("id"),
-                        rs.getString("nome"),
-                        rs.getInt("idade"),
-                        rs.getString("tipo_deficiencia"),
-                        rs.getString("telefone")
-                ));
+                lista.add(mapearResultSetParaPaciente(rs));
             }
             return lista;
 
         } catch (SQLException e) {
-            throw new InfraestruturaException("Erro ao listar pacientes.", e);
+            System.err.println("Erro SQL ao listar pacientes: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Erro de banco de dados ao listar pacientes.", e);
+        } finally {
+            try { if (rs != null) rs.close(); } catch (SQLException e) { /* Ignora */ }
+            try { if (stmt != null) stmt.close(); } catch (SQLException e) { /* Ignora */ }
+            try { if (conn != null) conn.close(); } catch (SQLException e) { /* Ignora */ }
         }
     }
 
     @Override
-    public void desativar(int id, long versao) throws InfraestruturaException, EntidadeNaoLocalizada {
-        String sql = "UPDATE PACIENTE SET ativo = 0, version = ?, last_update = ? "
-                + "WHERE id = ? AND version = ?";
-        try (Connection conn = conexaoBD.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+    public boolean editar(Paciente paciente) {
 
-            long novaVersao = versao + 1;
+        String sql = "UPDATE PACIENTE SET nome = ?, idade = ?, tipo_deficiencia = ?, "
+                + "telefone = ?, email = ?, last_update = ? "
+                + "WHERE id = ? AND ativo = 1";
+
+        Connection conn = null;
+        PreparedStatement stmt = null;
+
+        try {
+            conn = conexaoBD.getConnection();
+            stmt = conn.prepareStatement(sql);
+
             Timestamp agora = new Timestamp(System.currentTimeMillis());
 
-            stmt.setLong(1, novaVersao);
-            stmt.setTimestamp(2, agora);
-            stmt.setInt(3, id);
-            stmt.setLong(4, versao);
+            stmt.setString(1, paciente.getNome());
+            stmt.setInt(2, paciente.getIdade());
+            stmt.setString(3, paciente.getTipoDeficiencia());
+            stmt.setString(4, paciente.getTelefone());
+            stmt.setString(5, paciente.getEmail());
+            stmt.setTimestamp(6, agora); // last_update
+            stmt.setInt(7, paciente.getId()); // WHERE id
 
-            if (stmt.executeUpdate() == 0) {
-                throw new EntidadeNaoLocalizada("Paciente não encontrado ou versão incorreta: " + id);
-            }
+            int affectedRows = stmt.executeUpdate();
+            return affectedRows > 0;
 
         } catch (SQLException e) {
-            throw new InfraestruturaException("Erro ao desativar paciente.", e);
+            System.err.println("Erro SQL ao editar paciente: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        } finally {
+            try { if (stmt != null) stmt.close(); } catch (SQLException e) { /* Ignora */ }
+            try { if (conn != null) conn.close(); } catch (SQLException e) { /* Ignora */ }
         }
     }
 
     @Override
-    public void reativar(int id, long versao) throws InfraestruturaException, EntidadeNaoLocalizada {
-        String sql = "UPDATE PACIENTE SET ativo = 1, version = ?, last_update = ? "
-                + "WHERE id = ? AND version = ?";
-        try (Connection conn = conexaoBD.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+    public boolean desativar(int id) {
 
-            long novaVersao = versao + 1;
+        String sql = "UPDATE PACIENTE SET ativo = 0, last_update = ? "
+                + "WHERE id = ? AND ativo = 1";
+
+        Connection conn = null;
+        PreparedStatement stmt = null;
+
+        try {
+            conn = conexaoBD.getConnection();
+            stmt = conn.prepareStatement(sql);
+
             Timestamp agora = new Timestamp(System.currentTimeMillis());
+            stmt.setTimestamp(1, agora);
+            stmt.setInt(2, id);
 
-            stmt.setLong(1, novaVersao);
-            stmt.setTimestamp(2, agora);
-            stmt.setInt(3, id);
-            stmt.setLong(4, versao);
-
-            if (stmt.executeUpdate() == 0) {
-                throw new EntidadeNaoLocalizada("Paciente não encontrado ou versão incorreta: " + id);
-            }
+            int affectedRows = stmt.executeUpdate();
+            return affectedRows > 0;
 
         } catch (SQLException e) {
-            throw new InfraestruturaException("Erro ao reativar paciente.", e);
+            System.err.println("Erro SQL ao desativar paciente: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+
+        } finally {
+            try { if (stmt != null) stmt.close(); } catch (SQLException e) { /* Ignora */ }
+            try { if (conn != null) conn.close(); } catch (SQLException e) { /* Ignora */ }
         }
     }
-}
+
+
+     }

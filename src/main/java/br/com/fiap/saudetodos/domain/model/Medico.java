@@ -1,25 +1,39 @@
 package br.com.fiap.saudetodos.domain.model;
 
-public class Medico extends br.com.fiap.saudetodos.domain.model.Pessoa {
+public class Medico extends Pessoa {
     private String crm;
     private String especialidade;
 
     public Medico(int id, String nome, String contato, String crm, String especialidade) {
         super(id, nome, contato);
-        this.crm = crm;
-        this.especialidade = especialidade;
+        setCrm(crm);
+        setEspecialidade(especialidade); 
     }
 
-    public String getCrm() {
-        return crm;
+
+    public Medico() {
+        super(0, "", "");
     }
+
+
+    public String getCrm() { return crm; }
+    public String getEspecialidade() { return especialidade; }
+
+
     public void setCrm(String crm) {
+        if (crm == null || crm.trim().isEmpty()) {
+            System.err.println("CRM não pode ser vazio.");
+
+            return;
+        }
         this.crm = crm;
     }
-    public String getEspecialidade() {
-        return especialidade;
-    }
     public void setEspecialidade(String especialidade) {
+        if (especialidade == null || especialidade.trim().isEmpty()) {
+            System.err.println("Especialidade não pode ser vazia.");
+
+            return;
+        }
         this.especialidade = especialidade;
     }
 
@@ -28,4 +42,3 @@ public class Medico extends br.com.fiap.saudetodos.domain.model.Pessoa {
         return "Medico [" + super.toString() + ", crm=" + crm + ", especialidade=" + especialidade + "]";
     }
 }
-

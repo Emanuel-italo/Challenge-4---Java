@@ -2,20 +2,21 @@ package br.com.fiap.saudetodos.domain.repository;
 
 import java.util.List;
 import br.com.fiap.saudetodos.domain.exceptions.EntidadeNaoLocalizada;
-import br.com.fiap.saudetodos.infrastructure.exceptions.InfraestruturaException;
 import br.com.fiap.saudetodos.domain.model.Paciente;
 
 public interface PacienteRepository {
 
-    Paciente salvar(Paciente paciente) throws InfraestruturaException;
+    Paciente salvar(Paciente paciente);
 
     Paciente buscarPorId(int id) throws EntidadeNaoLocalizada;
 
-    List<Paciente> buscarTodos() throws InfraestruturaException;
+    Paciente buscarPorCpf(String cpf) throws EntidadeNaoLocalizada;
 
-    void editar(Paciente paciente) throws InfraestruturaException, EntidadeNaoLocalizada;
+    List<Paciente> buscarTodos();
 
-    void desativar(int id, long versao) throws InfraestruturaException, EntidadeNaoLocalizada;
+    boolean editar(Paciente paciente);
 
-    void reativar(int id, long versao) throws InfraestruturaException, EntidadeNaoLocalizada;
+    boolean desativar(int id);
+
+
 }

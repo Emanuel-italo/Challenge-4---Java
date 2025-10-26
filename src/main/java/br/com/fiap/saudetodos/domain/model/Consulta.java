@@ -10,96 +10,109 @@ public class Consulta {
     private String status;
     private Paciente paciente;
     private Medico medico;
-    private long versao;
+    private boolean ativo;
 
-    public Consulta(int id,
-                    LocalDate data,
-                    LocalTime hora,
-                    String status,
-                    Paciente paciente,
-                    Medico medico) {
+
+    public Consulta(int id, LocalDate data, LocalTime hora, String status, Paciente paciente, Medico medico) {
         this.id = id;
-        this.data = data;
-        this.hora = hora;
-        this.status = status;
-        this.paciente = paciente;
-        this.medico = medico;
-        this.versao = 1L;  // versão inicial sempre começa em 1
+        setData(data);
+        setHora(hora);
+        setStatus(status);
+        setPaciente(paciente);
+        setMedico(medico);
+        this.ativo = true;
     }
 
 
-    public int getId() {
-        return id;
+    public Consulta() {
+        this.ativo = true;
     }
 
-    public void setId(int id) {
-        this.id = id;
-    }
 
-    public LocalDate getData() {
-        return data;
-    }
+    public int getId() { return id; }
+    public LocalDate getData() { return data; }
+    public LocalTime getHora() { return hora; }
+    public String getStatus() { return status; }
+    public Paciente getPaciente() { return paciente; }
+    public Medico getMedico() { return medico; }
+    public boolean isAtivo() { return ativo; }
+
+
+    public void setId(int id) { this.id = id; }
 
     public void setData(LocalDate data) {
-        this.data = data;
-    }
+        if (data == null || data.isBefore(LocalDate.now())) {
+            System.err.println("Data da consulta inválida: " + data);
 
-    public LocalTime getHora() {
-        return hora;
+            return;
+        }
+        this.data = data;
     }
 
     public void setHora(LocalTime hora) {
+        if (hora == null) {
+            System.err.println("Hora da consulta não pode ser nula."); return;
+        }
+
+        if(hora.getHour() < 8 || hora.getHour() >= 18){
+            System.err.println("Hora da consulta fora do expediente (8h-18h): " + hora);
+
+            return;
+        }
         this.hora = hora;
     }
 
-    public String getStatus() {
-        return status;
-    }
-
     public void setStatus(String status) {
-        this.status = status;
-    }
+        if (status == null || status.trim().isEmpty()) {
+            System.err.println("Status da consulta não pode ser vazio.");
 
-    public Paciente getPaciente() {
-        return paciente;
+            return;
+        }
+
+        this.status = status.toUpperCase();
     }
 
     public void setPaciente(Paciente paciente) {
+        if (paciente == null) {
+            System.err.println("Paciente da consulta não pode ser nulo.");
+
+            return;
+        }
         this.paciente = paciente;
     }
 
-    public Medico getMedico() {
-        return medico;
-    }
-
     public void setMedico(Medico medico) {
+        if (medico == null) {
+            System.err.println("Médico da consulta não pode ser nulo.");
+
+            return;
+        }
         this.medico = medico;
     }
 
-
-    public long getVersao() {
-        return versao;
-    }
-
-    public void setVersao(long versao) {
-        this.versao = versao;
+    public void setAtivo(boolean ativo) {
+        this.ativo = ativo;
     }
 
 
+    public void cancelar() {
+        if ("AGENDADA".equals(this.status) || "CONFIRMADA".equals(this.status)) {
+            this.status = "CANCELADA";
+            this.ativo = false;
+            System.out.println("Consulta ID " + this.id + " cancelada.");
+        } else {
+            System.err.println("Não é possível cancelar consulta com status: " + this.status);
 
-    public boolean isAgendadaParaHoje() {
-        return LocalDate.now().equals(this.data);
+        }
     }
 
-    public boolean isPeriodoManha() {
-        return this.hora.isBefore(LocalTime.NOON);
-    }
 
     @Override
     public String toString() {
         String nomePaciente = paciente != null ? paciente.getNome() : "null";
         String nomeMedico   = medico   != null ? medico.getNome()   : "null";
         return "Consulta [id=" + id + ", data=" + data + ", hora=" + hora
-                + ", status=" + status + ", paciente=" + nomePaciente + ", medico=" + nomeMedico + ", versao=" + versao + "]";
+                + ", status=" + status + ", paciente=" + nomePaciente + ", medico=" + nomeMedico
+                + ", ativo=" + ativo + "]";
     }
 }

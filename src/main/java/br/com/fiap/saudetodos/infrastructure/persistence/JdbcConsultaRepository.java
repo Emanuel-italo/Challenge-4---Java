@@ -8,8 +8,7 @@ import br.com.fiap.saudetodos.domain.model.Consulta;
 import br.com.fiap.saudetodos.domain.model.Medico;
 import br.com.fiap.saudetodos.domain.model.Paciente;
 import br.com.fiap.saudetodos.domain.repository.ConsultaRepository;
-import br.com.fiap.saudetodos.domain.repository.PacienteRepository;
-import br.com.fiap.saudetodos.infrastructure.exceptions.InfraestruturaException;
+import br.com.fiap.saudetodos.domain.repository.PacienteRepository; // Para buscar paciente
 
 import java.sql.*;
 import java.time.LocalDate;
@@ -21,148 +20,267 @@ import java.util.List;
 public class JdbcConsultaRepository implements ConsultaRepository {
 
     private final DatabaseConnection conexaoBD;
+    private final PacienteRepository pacienteRepository; // Precisa para montar o objeto Consulta
+
+
 
     @Inject
-    PacienteRepository pacRepo;
-
-    @Inject
-    public JdbcConsultaRepository(AgroalDataSource ds) {
-        this.conexaoBD = new DatabaseConnectionImpl(ds);
+    public JdbcConsultaRepository(DatabaseConnection conexaoBD, PacienteRepository pacienteRepository) {
+        this.conexaoBD = conexaoBD;
+        this.pacienteRepository = pacienteRepository;
+        // this.medicoRepository = medicoRepository;
     }
+
+
+    private Consulta mapearResultSetParaConsulta(ResultSet rs) throws SQLException, EntidadeNaoLocalizada {
+        int consultaId      = rs.getInt("id");
+        LocalDate data      = rs.getDate("data_consulta").toLocalDate();
+        Timestamp tsHora    = rs.getTimestamp("hora_consulta"); // Assumindo TIMESTAMP para hora
+        LocalTime hora      = (tsHora != null) ? tsHora.toLocalDateTime().toLocalTime() : null;
+        String status       = rs.getString("status");
+        int pacienteId      = rs.getInt("paciente_id");
+        int medicoId        = rs.getInt("medico_id");
+        boolean ativo       = rs.getInt("ativo") == 1;
+
+
+        Paciente paciente = pacienteRepository.buscarPorId(pacienteId);
+
+
+        Medico medico = new Medico(medicoId, "Médico " + medicoId, "", "CRM" + medicoId, "Especialidade");
+
+
+
+        Consulta consulta = new Consulta(consultaId, data, hora, status, paciente, medico);
+        consulta.setAtivo(ativo);
+        return consulta;
+    }
+
 
     @Override
     public Consulta salvar(Consulta consulta) {
+        // SQL sem version
         String sql = "INSERT INTO CONSULTA "
-                + "(data_consulta, hora_consulta, status, paciente_id, medico_id, ativo, version, created_at, last_update) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + "(data_consulta, hora_consulta, status, paciente_id, medico_id, ativo, created_at, last_update) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         String[] generatedColumns = { "ID" };
 
-        try (Connection conn = conexaoBD.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql, generatedColumns)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet generatedKeys = null;
+
+        try {
+            conn = conexaoBD.getConnection();
+            stmt = conn.prepareStatement(sql, generatedColumns);
 
             stmt.setDate(1, Date.valueOf(consulta.getData()));
-            stmt.setTime(2, Time.valueOf(consulta.getHora()));
+            stmt.setTimestamp(2, Timestamp.valueOf(consulta.getData().atTime(consulta.getHora()))); // Combina data/hora
             stmt.setString(3, consulta.getStatus());
             stmt.setInt(4, consulta.getPaciente().getId());
             stmt.setInt(5, consulta.getMedico().getId());
-            stmt.setInt(6, 1); // Oracle NUMBER(1) usado como booleano
-            stmt.setLong(7, consulta.getVersao());
+            stmt.setInt(6, 1); // ativo = true
 
             Timestamp agora = new Timestamp(System.currentTimeMillis());
-            stmt.setTimestamp(8, agora);
-            stmt.setTimestamp(9, agora);
+            stmt.setTimestamp(7, agora); // created_at
+            stmt.setTimestamp(8, agora); // last_update
 
-            if (stmt.executeUpdate() == 0) {
-                throw new InfraestruturaException("Falha ao salvar consulta.");
+            int affectedRows = stmt.executeUpdate();
+            if (affectedRows == 0) {
+                System.err.println("Falha ao salvar consulta."); return null;
             }
 
-            try (ResultSet rs = stmt.getGeneratedKeys()) {
-                if (rs.next()) {
-                    consulta.setId(rs.getInt(1));
-                }
+            generatedKeys = stmt.getGeneratedKeys();
+            if (generatedKeys.next()) {
+                consulta.setId(generatedKeys.getInt(1));
+                return consulta;
+            } else {
+                System.err.println("Falha ao obter ID da consulta."); return null;
             }
-            return consulta;
 
         } catch (SQLException e) {
-            throw new InfraestruturaException("Erro ao salvar consulta.", e);
+            System.err.println("Erro SQL ao salvar consulta: " + e.getMessage());
+            e.printStackTrace();
+
+            return null;
+        } finally {
+            try { if (generatedKeys != null) generatedKeys.close(); } catch (SQLException e) { /* Ignora */ }
+            try { if (stmt != null) stmt.close(); } catch (SQLException e) { /* Ignora */ }
+            try { if (conn != null) conn.close(); } catch (SQLException e) { /* Ignora */ }
         }
     }
 
     @Override
-    public Consulta buscarPorId(long id) throws EntidadeNaoLocalizada {
-        String sql = "SELECT data_consulta, hora_consulta, status, paciente_id, medico_id "
+    public Consulta buscarPorId(int id) throws EntidadeNaoLocalizada {
+        // Busca apenas consultas ativas
+        String sql = "SELECT id, data_consulta, hora_consulta, status, paciente_id, medico_id, ativo "
                 + "FROM CONSULTA WHERE id = ? AND ativo = 1";
 
-        try (Connection conn = conexaoBD.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
 
-            stmt.setLong(1, id);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (!rs.next()) {
-                    throw new EntidadeNaoLocalizada("Consulta não encontrada: " + id);
-                }
+        try {
+            conn = conexaoBD.getConnection();
+            stmt = conn.prepareStatement(sql);
+            stmt.setInt(1, id);
+            rs = stmt.executeQuery();
 
-                LocalDate data      = rs.getDate("data_consulta").toLocalDate();
-                LocalTime hora      = rs.getTime("hora_consulta").toLocalTime();
-                String status       = rs.getString("status");
-                int pid             = rs.getInt("paciente_id");
-                int mid             = rs.getInt("medico_id");
+            if (rs.next()) {
 
-                // busca o paciente completo
-                Paciente paciente = pacRepo.buscarPorId(pid);
-
-                // ainda não há repositório de Medico: criamos um dummy com nome não-vazio
-                Medico medico = new Medico(mid,
-                        "Médico#" + mid,
-                        "",     // contato
-                        "",     // crm
-                        ""      // especialidade
-                );
-
-                return new Consulta((int) id, data, hora, status, paciente, medico);
+                return mapearResultSetParaConsulta(rs);
+            } else {
+                throw new EntidadeNaoLocalizada("Consulta não encontrada com ID: " + id);
             }
 
         } catch (SQLException e) {
-            throw new InfraestruturaException("Erro ao buscar consulta.", e);
-        }
-    }
+            System.err.println("Erro SQL ao buscar consulta por ID: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Erro de banco de dados ao buscar consulta.", e);
+        } catch (EntidadeNaoLocalizada e) {
 
-    @Override
-    public void editar(Consulta consulta) throws InfraestruturaException, EntidadeNaoLocalizada {
-        String sql = "UPDATE CONSULTA "
-                + "SET data_consulta = ?, hora_consulta = ?, status = ?,"
-                + "    version = ?, last_update = ? "
-                + "WHERE id = ? AND ativo = 1";
-
-        try (Connection conn = conexaoBD.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            long novaVersao = consulta.getVersao() + 1;
-            Timestamp agora = new Timestamp(System.currentTimeMillis());
-
-            stmt.setDate(1, Date.valueOf(consulta.getData()));
-            stmt.setTime(2, Time.valueOf(consulta.getHora()));
-            stmt.setString(3, consulta.getStatus());
-            stmt.setLong(4, novaVersao);
-            stmt.setTimestamp(5, agora);
-            stmt.setLong(6, consulta.getId());
-
-            if (stmt.executeUpdate() == 0) {
-                throw new EntidadeNaoLocalizada("Consulta não encontrada para editar: " + consulta.getId());
-            }
-            consulta.setVersao(novaVersao);
-
-        } catch (SQLException e) {
-            throw new InfraestruturaException("Erro ao editar consulta.", e);
+            System.err.println("Erro ao buscar consulta: " + e.getMessage());
+            throw new EntidadeNaoLocalizada("Consulta encontrada, mas paciente associado não existe ou está inativo (ID Consulta: " + id + ")");
+        } finally {
+            try { if (rs != null) rs.close(); } catch (SQLException e) { /* Ignora */ }
+            try { if (stmt != null) stmt.close(); } catch (SQLException e) { /* Ignora */ }
+            try { if (conn != null) conn.close(); } catch (SQLException e) { /* Ignora */ }
         }
     }
 
     @Override
     public List<Consulta> buscarTodos() {
-        // Se precisar, implemente um SELECT + join em PACIENTE etc.
-        return new ArrayList<>();
+        String sql = "SELECT id, data_consulta, hora_consulta, status, paciente_id, medico_id, ativo "
+                + "FROM CONSULTA WHERE ativo = 1 ORDER BY data_consulta, hora_consulta";
+        List<Consulta> lista = new ArrayList<>();
+
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+
+        try {
+            conn = conexaoBD.getConnection();
+            stmt = conn.prepareStatement(sql);
+            rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                try {
+                    lista.add(mapearResultSetParaConsulta(rs));
+                } catch (EntidadeNaoLocalizada e) {
+
+                    System.err.println("Aviso: Paciente da consulta ID " + rs.getInt("id") + " não encontrado/inativo. Consulta ignorada na lista.");
+                }
+            }
+            return lista;
+
+        } catch (SQLException e) {
+            System.err.println("Erro SQL ao listar consultas: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Erro de banco de dados ao listar consultas.", e);
+        } finally {
+            try { if (rs != null) rs.close(); } catch (SQLException e) { /* Ignora */ }
+            try { if (stmt != null) stmt.close(); } catch (SQLException e) { /* Ignora */ }
+            try { if (conn != null) conn.close(); } catch (SQLException e) { /* Ignora */ }
+        }
     }
 
     @Override
-    public void finalizar(long id, long versao) throws InfraestruturaException, EntidadeNaoLocalizada {
-        String sql = "UPDATE CONSULTA "
-                + "SET status = 'FINALIZADA', version = ?, last_update = ? "
-                + "WHERE id = ? AND version = ?";
+    public List<Consulta> buscarPorPacienteId(int pacienteId) {
+        String sql = "SELECT id, data_consulta, hora_consulta, status, paciente_id, medico_id, ativo "
+                + "FROM CONSULTA WHERE paciente_id = ? AND ativo = 1 ORDER BY data_consulta, hora_consulta";
+        List<Consulta> lista = new ArrayList<>();
 
-        try (Connection conn = conexaoBD.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
 
-            stmt.setLong(1, versao + 1);
-            stmt.setTimestamp(2, new Timestamp(System.currentTimeMillis()));
-            stmt.setLong(3, id);
-            stmt.setLong(4, versao);
+        try {
+            conn = conexaoBD.getConnection();
+            stmt = conn.prepareStatement(sql);
+            stmt.setInt(1, pacienteId);
+            rs = stmt.executeQuery();
 
-            if (stmt.executeUpdate() == 0) {
-                throw new EntidadeNaoLocalizada("Consulta não encontrada ou versão inválida: " + id);
+            while (rs.next()) {
+                try {
+                    lista.add(mapearResultSetParaConsulta(rs));
+                } catch (EntidadeNaoLocalizada e) {
+                    System.err.println("Aviso: Paciente da consulta ID " + rs.getInt("id") + " não encontrado/inativo. Consulta ignorada na lista.");
+                }
             }
+            return lista;
 
         } catch (SQLException e) {
-            throw new InfraestruturaException("Erro ao finalizar consulta.", e);
+            System.err.println("Erro SQL ao listar consultas do paciente: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Erro de banco de dados ao listar consultas do paciente.", e);
+        } finally {
+
+            try { if (rs != null) rs.close(); } catch (SQLException e) { /* Ignora */ }
+            try { if (stmt != null) stmt.close(); } catch (SQLException e) { /* Ignora */ }
+            try { if (conn != null) conn.close(); } catch (SQLException e) { /* Ignora */ }
+        }
+    }
+
+
+    @Override
+    public boolean editar(Consulta consulta) {
+
+        String sql = "UPDATE CONSULTA SET data_consulta = ?, hora_consulta = ?, status = ?, last_update = ? "
+                + "WHERE id = ? AND ativo = 1";
+
+        Connection conn = null;
+        PreparedStatement stmt = null;
+
+        try {
+            conn = conexaoBD.getConnection();
+            stmt = conn.prepareStatement(sql);
+
+            Timestamp agora = new Timestamp(System.currentTimeMillis());
+
+            stmt.setDate(1, Date.valueOf(consulta.getData()));
+            stmt.setTimestamp(2, Timestamp.valueOf(consulta.getData().atTime(consulta.getHora())));
+            stmt.setString(3, consulta.getStatus());
+            stmt.setTimestamp(4, agora); // last_update
+            stmt.setInt(5, consulta.getId()); // WHERE id
+
+            int affectedRows = stmt.executeUpdate();
+            return affectedRows > 0;
+
+        } catch (SQLException e) {
+            System.err.println("Erro SQL ao editar consulta: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        } finally {
+            try { if (stmt != null) stmt.close(); } catch (SQLException e) { /* Ignora */ }
+            try { if (conn != null) conn.close(); } catch (SQLException e) { /* Ignora */ }
+        }
+    }
+
+    @Override
+    public boolean cancelar(int id) {
+
+        String sql = "UPDATE CONSULTA SET status = 'CANCELADA', ativo = 0, last_update = ? "
+                + "WHERE id = ? AND ativo = 1";
+
+        Connection conn = null;
+        PreparedStatement stmt = null;
+
+        try {
+            conn = conexaoBD.getConnection();
+            stmt = conn.prepareStatement(sql);
+
+            Timestamp agora = new Timestamp(System.currentTimeMillis());
+            stmt.setTimestamp(1, agora);
+            stmt.setInt(2, id);
+
+            int affectedRows = stmt.executeUpdate();
+            return affectedRows > 0;
+
+        } catch (SQLException e) {
+            System.err.println("Erro SQL ao cancelar consulta: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        } finally {
+            try { if (stmt != null) stmt.close(); } catch (SQLException e) { /* Ignora */ }
+            try { if (conn != null) conn.close(); } catch (SQLException e) { /* Ignora */ }
         }
     }
 }
