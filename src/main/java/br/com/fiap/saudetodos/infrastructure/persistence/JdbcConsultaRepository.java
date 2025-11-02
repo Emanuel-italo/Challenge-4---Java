@@ -1,6 +1,4 @@
 package br.com.fiap.saudetodos.infrastructure.persistence;
-
-import io.agroal.api.AgroalDataSource;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import br.com.fiap.saudetodos.domain.exceptions.EntidadeNaoLocalizada;
@@ -8,7 +6,7 @@ import br.com.fiap.saudetodos.domain.model.Consulta;
 import br.com.fiap.saudetodos.domain.model.Medico;
 import br.com.fiap.saudetodos.domain.model.Paciente;
 import br.com.fiap.saudetodos.domain.repository.ConsultaRepository;
-import br.com.fiap.saudetodos.domain.repository.PacienteRepository; // Para buscar paciente
+import br.com.fiap.saudetodos.domain.repository.PacienteRepository; 
 
 import java.sql.*;
 import java.time.LocalDate;
@@ -20,7 +18,7 @@ import java.util.List;
 public class JdbcConsultaRepository implements ConsultaRepository {
 
     private final DatabaseConnection conexaoBD;
-    private final PacienteRepository pacienteRepository; // Precisa para montar o objeto Consulta
+    private final PacienteRepository pacienteRepository; 
 
 
 
@@ -28,14 +26,13 @@ public class JdbcConsultaRepository implements ConsultaRepository {
     public JdbcConsultaRepository(DatabaseConnection conexaoBD, PacienteRepository pacienteRepository) {
         this.conexaoBD = conexaoBD;
         this.pacienteRepository = pacienteRepository;
-        // this.medicoRepository = medicoRepository;
     }
 
 
     private Consulta mapearResultSetParaConsulta(ResultSet rs) throws SQLException, EntidadeNaoLocalizada {
         int consultaId      = rs.getInt("id");
         LocalDate data      = rs.getDate("data_consulta").toLocalDate();
-        Timestamp tsHora    = rs.getTimestamp("hora_consulta"); // Assumindo TIMESTAMP para hora
+        Timestamp tsHora    = rs.getTimestamp("hora_consulta"); 
         LocalTime hora      = (tsHora != null) ? tsHora.toLocalDateTime().toLocalTime() : null;
         String status       = rs.getString("status");
         int pacienteId      = rs.getInt("paciente_id");
@@ -58,7 +55,7 @@ public class JdbcConsultaRepository implements ConsultaRepository {
 
     @Override
     public Consulta salvar(Consulta consulta) {
-        // SQL sem version
+        
         String sql = "INSERT INTO CONSULTA "
                 + "(data_consulta, hora_consulta, status, paciente_id, medico_id, ativo, created_at, last_update) "
                 + "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
@@ -77,11 +74,11 @@ public class JdbcConsultaRepository implements ConsultaRepository {
             stmt.setString(3, consulta.getStatus());
             stmt.setInt(4, consulta.getPaciente().getId());
             stmt.setInt(5, consulta.getMedico().getId());
-            stmt.setInt(6, 1); // ativo = true
+            stmt.setInt(6, 1); 
 
             Timestamp agora = new Timestamp(System.currentTimeMillis());
-            stmt.setTimestamp(7, agora); // created_at
-            stmt.setTimestamp(8, agora); // last_update
+            stmt.setTimestamp(7, agora); 
+            stmt.setTimestamp(8, agora); 
 
             int affectedRows = stmt.executeUpdate();
             if (affectedRows == 0) {
@@ -110,7 +107,7 @@ public class JdbcConsultaRepository implements ConsultaRepository {
 
     @Override
     public Consulta buscarPorId(int id) throws EntidadeNaoLocalizada {
-        // Busca apenas consultas ativas
+        
         String sql = "SELECT id, data_consulta, hora_consulta, status, paciente_id, medico_id, ativo "
                 + "FROM CONSULTA WHERE id = ? AND ativo = 1";
 
@@ -238,8 +235,8 @@ public class JdbcConsultaRepository implements ConsultaRepository {
             stmt.setDate(1, Date.valueOf(consulta.getData()));
             stmt.setTimestamp(2, Timestamp.valueOf(consulta.getData().atTime(consulta.getHora())));
             stmt.setString(3, consulta.getStatus());
-            stmt.setTimestamp(4, agora); // last_update
-            stmt.setInt(5, consulta.getId()); // WHERE id
+            stmt.setTimestamp(4, agora); 
+            stmt.setInt(5, consulta.getId()); 
 
             int affectedRows = stmt.executeUpdate();
             return affectedRows > 0;

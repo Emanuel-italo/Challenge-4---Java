@@ -2,7 +2,7 @@ package br.com.fiap.saudetodos.infrastructure.web.resource;
 
 import br.com.fiap.saudetodos.domain.exceptions.EntidadeNaoLocalizada;
 import br.com.fiap.saudetodos.domain.model.Paciente;
-import br.com.fiap.saudetodos.domain.repository.PacienteRepository; // Injetar Repo diretamente
+import br.com.fiap.saudetodos.domain.repository.PacienteRepository;
 
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -11,7 +11,8 @@ import jakarta.ws.rs.core.Response;
 import java.util.List;
 import java.util.Map;
 
-@Path("/pacientes")
+
+@Path("/api/pacientes")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class PacienteResource {
@@ -22,9 +23,15 @@ public class PacienteResource {
     @POST
     public Response criarPaciente(Paciente paciente) {
 
-        if (paciente == null || paciente.getNome() == null || paciente.getCpf() == null) {
+        System.out.println("Recebido POST /api/pacientes com dados: " + paciente);
+
+        if (paciente == null || paciente.getNome() == null || paciente.getNome().trim().isEmpty() ||
+                paciente.getCpf() == null || paciente.getCpf().isEmpty() || 
+                paciente.getEmail() == null || paciente.getEmail().isEmpty()) {
+
+            System.err.println("Erro: Dados inválidos (nome, cpf ou email vazios).");
             return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(Map.of("erro", "Dados incompletos para criar paciente."))
+                    .entity(Map.of("erro", "Dados incompletos. Nome, CPF e Email são obrigatórios."))
                     .build();
         }
 
@@ -32,17 +39,24 @@ public class PacienteResource {
 
             pacienteRepository.buscarPorCpf(paciente.getCpf());
 
+
+            System.err.println("Erro: CPF " + paciente.getCpf() + " já cadastrado.");
             return Response.status(Response.Status.CONFLICT)
                     .entity(Map.of("erro", "CPF já cadastrado."))
                     .build();
+
         } catch (EntidadeNaoLocalizada e) {
+           
+            System.out.println("CPF " + paciente.getCpf() + " disponível. Tentando salvar...");
+
 
             Paciente pacienteSalvo = pacienteRepository.salvar(paciente);
-            if (pacienteSalvo != null) {
 
+            if (pacienteSalvo != null && pacienteSalvo.getId() > 0) {
+                System.out.println("Paciente criado com sucesso! ID: " + pacienteSalvo.getId());
                 return Response.status(Response.Status.CREATED).entity(pacienteSalvo).build();
             } else {
-
+                System.err.println("Erro: Falha ao salvar paciente no banco de dados.");
                 return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                         .entity(Map.of("erro", "Erro interno ao salvar paciente."))
                         .build();
@@ -59,8 +73,10 @@ public class PacienteResource {
 
     @GET
     public Response listarPacientes() {
+        System.out.println("Recebido GET /api/pacientes"); 
         try {
             List<Paciente> pacientes = pacienteRepository.buscarTodos();
+            System.out.println("Encontrados " + pacientes.size() + " pacientes.");
             return Response.ok(pacientes).build();
         } catch (Exception e) {
             System.err.println("Erro ao buscar todos os pacientes: " + e.getMessage());
@@ -74,11 +90,13 @@ public class PacienteResource {
     @GET
     @Path("/{id}")
     public Response buscarPacientePorId(@PathParam("id") int id) {
+        System.out.println("Recebido GET /api/pacientes/" + id); 
         try {
             Paciente paciente = pacienteRepository.buscarPorId(id);
+            System.out.println("Paciente encontrado: " + paciente.getNome());
             return Response.ok(paciente).build();
         } catch (EntidadeNaoLocalizada e) {
-
+            System.err.println("Erro: " + e.getMessage());
             return Response.status(Response.Status.NOT_FOUND)
                     .entity(Map.of("erro", e.getMessage()))
                     .build();
@@ -94,10 +112,13 @@ public class PacienteResource {
     @GET
     @Path("/cpf/{cpf}")
     public Response buscarPacientePorCpf(@PathParam("cpf") String cpf) {
+        System.out.println("Recebido GET /api/pacientes/cpf/" + cpf); 
         try {
             Paciente paciente = pacienteRepository.buscarPorCpf(cpf);
+            System.out.println("Paciente encontrado pelo CPF: " + paciente.getNome());
             return Response.ok(paciente).build();
         } catch (EntidadeNaoLocalizada e) {
+            System.err.println("Erro: " + e.getMessage());
             return Response.status(Response.Status.NOT_FOUND)
                     .entity(Map.of("erro", e.getMessage()))
                     .build();
@@ -113,44 +134,38 @@ public class PacienteResource {
     @PUT
     @Path("/{id}")
     public Response atualizarPaciente(@PathParam("id") int id, Paciente paciente) {
-        // Validação básica
+        System.out.println("Recebido PUT /api/pacientes/" + id); 
         if (paciente == null) {
             return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("erro", "Corpo da requisição vazio.")).build();
         }
 
-
-        paciente.setId(id);
-
+        paciente.setId(id); 
         try {
-
-            pacienteRepository.buscarPorId(id);
+            
+            pacienteRepository.buscarPorId(id); 
 
             boolean sucesso = pacienteRepository.editar(paciente);
             if (sucesso) {
-
+                System.out.println("Paciente ID " + id + " atualizado.");
                 Paciente pacienteAtualizado = pacienteRepository.buscarPorId(id);
-                return Response.ok(pacienteAtualizado).build(); // 200 OK
+                return Response.ok(pacienteAtualizado).build();
             } else {
-
+                System.err.println("Falha no update (paciente ID " + id + "), verificando se ainda existe...");
+             
                 try {
-                    pacienteRepository.buscarPorId(id);
-
+                    pacienteRepository.buscarPorId(id); 
                     return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(Map.of("erro", "Erro interno ao atualizar paciente.")).build();
                 } catch (EntidadeNaoLocalizada naoAchou) {
-
+                    
                     return Response.status(Response.Status.NOT_FOUND).entity(Map.of("erro", "Paciente não encontrado ou inativo para atualização.")).build();
                 }
             }
         } catch (EntidadeNaoLocalizada e) {
-
+            System.err.println("Erro: Paciente ID " + id + " não encontrado para atualizar.");
             return Response.status(Response.Status.NOT_FOUND).entity(Map.of("erro", e.getMessage())).build();
         } catch (Exception e) {
             System.err.println("Erro ao atualizar paciente: " + e.getMessage());
             e.printStackTrace();
-
-            if (e instanceof IllegalArgumentException) {
-                return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("erro", "Dados inválidos: " + e.getMessage())).build();
-            }
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(Map.of("erro", "Erro interno ao atualizar paciente.")).build();
         }
     }
@@ -158,16 +173,16 @@ public class PacienteResource {
     @DELETE
     @Path("/{id}")
     public Response desativarPaciente(@PathParam("id") int id) {
+        System.out.println("Recebido DELETE /api/pacientes/" + id); 
         try {
             boolean sucesso = pacienteRepository.desativar(id);
             if (sucesso) {
-                return Response.noContent().build();
+                System.out.println("Paciente ID " + id + " desativado.");
+                return Response.noContent().build(); 
             } else {
-
+                System.err.println("Falha ao desativar paciente ID " + id + ", verificando se existe...");
                 try {
-                    pacienteRepository.buscarPorId(id);
-
-                    System.err.println("Erro inesperado ao desativar paciente ID: " + id + " (estava ativo mas falhou?)");
+                    pacienteRepository.buscarPorId(id); 
                     return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(Map.of("erro", "Erro inesperado ao desativar.")).build();
                 } catch (EntidadeNaoLocalizada e) {
 

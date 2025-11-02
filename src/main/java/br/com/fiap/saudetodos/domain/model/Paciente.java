@@ -73,7 +73,7 @@ public class Paciente extends Pessoa {
             System.err.println("CPF inválido (não tem 11 dígitos): " + cpf);
 
             return;
-        }// Validação básica de dígitos repetidos
+        }
         if (cpfNumerico.matches("(\\d)\\1{10}")) {
             System.err.println("CPF inválido (dígitos repetidos): " + cpf);
 

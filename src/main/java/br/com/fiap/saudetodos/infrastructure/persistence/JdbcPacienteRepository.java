@@ -1,5 +1,4 @@
 package br.com.fiap.saudetodos.infrastructure.persistence;
-import io.agroal.api.AgroalDataSource;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import br.com.fiap.saudetodos.domain.exceptions.EntidadeNaoLocalizada;
@@ -15,7 +14,7 @@ public class JdbcPacienteRepository implements PacienteRepository {
 
     private final DatabaseConnection conexaoBD;
 
-    @Inject // Construtor para injeção
+    @Inject 
     public JdbcPacienteRepository(DatabaseConnection conexaoBD) {
         this.conexaoBD = conexaoBD;
     }
@@ -58,11 +57,11 @@ public class JdbcPacienteRepository implements PacienteRepository {
             stmt.setString(4, paciente.getTelefone());
             stmt.setString(5, paciente.getCpf());
             stmt.setString(6, paciente.getEmail());
-            stmt.setInt(7, 1); // ativo = true
+            stmt.setInt(7, 1); 
 
             Timestamp agora = new Timestamp(System.currentTimeMillis());
-            stmt.setTimestamp(8, agora); // created_at
-            stmt.setTimestamp(9, agora); // last_update
+            stmt.setTimestamp(8, agora); 
+            stmt.setTimestamp(9, agora); 
 
             int affectedRows = stmt.executeUpdate();
 
@@ -73,7 +72,7 @@ public class JdbcPacienteRepository implements PacienteRepository {
 
             generatedKeys = stmt.getGeneratedKeys();
             if (generatedKeys.next()) {
-                paciente.setId(generatedKeys.getInt(1)); // Define o ID no objeto
+                paciente.setId(generatedKeys.getInt(1)); 
                 return paciente;
             } else {
                 System.err.println("Falha ao obter ID gerado para o paciente.");
@@ -133,7 +132,7 @@ public class JdbcPacienteRepository implements PacienteRepository {
 
         String sql = "SELECT id, nome, idade, tipo_deficiencia, telefone, cpf, email, ativo "
                 + "FROM PACIENTE WHERE cpf = ? AND ativo = 1";
-        String cpfNumerico = cpf != null ? cpf.replaceAll("\\D", "") : ""; // Garante limpeza
+        String cpfNumerico = cpf != null ? cpf.replaceAll("\\D", "") : ""; 
 
         Connection conn = null;
         PreparedStatement stmt = null;
@@ -215,8 +214,8 @@ public class JdbcPacienteRepository implements PacienteRepository {
             stmt.setString(3, paciente.getTipoDeficiencia());
             stmt.setString(4, paciente.getTelefone());
             stmt.setString(5, paciente.getEmail());
-            stmt.setTimestamp(6, agora); // last_update
-            stmt.setInt(7, paciente.getId()); // WHERE id
+            stmt.setTimestamp(6, agora); 
+            stmt.setInt(7, paciente.getId()); 
 
             int affectedRows = stmt.executeUpdate();
             return affectedRows > 0;
